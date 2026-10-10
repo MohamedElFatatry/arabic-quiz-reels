@@ -1,0 +1,272 @@
+name: iQuiz - Publish Arabic Shorts
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'How many new Shorts to publish?'
+        type: choice
+        options: ['1', '3', '6']
+        default: '3'
+  schedule:
+    - cron: '17 6,12,18 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iquiz-youtube-upload
+  cancel-in-progress: false
+
+jobs:
+  publish-shorts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install Pillow arabic-reshaper python-bidi google-api-python-client google-auth edge-tts
+      - name: Create and publish new topic Shorts
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          BATCH_COUNT: ${{ inputs.count || '1' }}
+        run: |
+          mkdir -p output
+          python <<'PYCODE'
+          BANK = [{'id': 'iq-v2-planets', 'topic': 'الكواكب', 'hook': 'أقرب كوكب ليس الأكثر حرارة!', 'hashtag': 'الفضاء', 'questions': [{'q': 'أي كوكب هو الأكثر حرارة؟', 'options': ['المريخ', 'الزهرة', 'عطارد'], 'answer': 1, 'fact': 'الغلاف الجوي الكثيف يحبس الحرارة.'}, {'q': 'أي كوكب هو الأقرب إلى الشمس؟', 'options': ['عطارد', 'الأرض', 'الزهرة'], 'answer': 0, 'fact': 'عطارد أول كوكب في ترتيب المجموعة.'}, {'q': 'أي كوكب هو الأبعد عن الشمس؟', 'options': ['أورانوس', 'نبتون', 'زحل'], 'answer': 1, 'fact': 'نبتون هو الثامن بين الكواكب الثمانية.'}, {'q': 'كم كوكبًا في المجموعة الشمسية؟', 'options': ['ثمانية', 'سبعة', 'تسعة'], 'answer': 0, 'fact': 'بلوتو مصنف كوكبًا قزمًا.'}, {'q': 'أي كوكب مشهور بحلقاته البارزة؟', 'options': ['عطارد', 'زحل', 'المريخ'], 'answer': 1, 'fact': 'زحل له نظام حلقات بارز.'}], 'sources': ['https://science.nasa.gov/solar-system/planets/']}, {'id': 'iq-v2-football', 'topic': 'قوانين كرة القدم', 'hook': 'فيه تسلل من رمية تماس؟', 'hashtag': 'كرة_القدم', 'questions': [{'q': 'كم لاعبًا للفريق على الملعب في البداية؟', 'options': ['11', '10', '12'], 'answer': 0, 'fact': 'العدد يشمل حارس المرمى.'}, {'q': 'مدة الشوط الأصلية في مباراة الكبار؟', 'options': ['50 دقيقة', '45 دقيقة', '40 دقيقة'], 'answer': 1, 'fact': 'شوطان، كل منهما 45 دقيقة.'}, {'q': 'نقطة الجزاء تبعد عن خط المرمى...', 'options': ['9 أمتار', '10 أمتار', '11 مترًا'], 'answer': 2, 'fact': 'المسافة القانونية 11 مترًا.'}, {'q': 'هل يوجد تسلل من رمية تماس مباشرة؟', 'options': ['نعم', 'حسب المسافة', 'لا'], 'answer': 2, 'fact': 'لا تسلل عند استلام رمية تماس مباشرة.'}, {'q': 'هل يوجد تسلل من ركلة ركنية مباشرة؟', 'options': ['حسب النتيجة', 'نعم', 'لا'], 'answer': 2, 'fact': 'الركنية المباشرة من استثناءات التسلل.'}], 'sources': ['https://www.theifab.com/laws/latest/the-players/', 'https://www.theifab.com/laws/latest/the-duration-of-the-match/', 'https://www.theifab.com/laws/latest/the-field-of-play/', 'https://www.theifab.com/laws/latest/offside/']}, {'id': 'iq-v2-islam', 'topic': 'معلومات إسلامية', 'hook': '٥ أسئلة عن القرآن والعبادات', 'hashtag': 'معلومات_دينية', 'questions': [{'q': 'كم سورة في القرآن الكريم؟', 'options': ['110', '120', '114'], 'answer': 2, 'fact': 'القرآن الكريم يضم 114 سورة.'}, {'q': 'ما أطول سورة في القرآن؟', 'options': ['آل عمران', 'النساء', 'البقرة'], 'answer': 2, 'fact': 'سورة البقرة تضم 286 آية.'}, {'q': 'أي شهر هجري يصوم فيه المسلمون؟', 'options': ['شعبان', 'رمضان', 'شوال'], 'answer': 1, 'fact': 'رمضان هو الشهر التاسع هجريًا.'}, {'q': 'إلى أين يتجه المسلمون في الصلاة؟', 'options': ['المسجد الأقصى', 'الكعبة', 'جبل عرفات'], 'answer': 1, 'fact': 'الكعبة هي قبلة المسلمين.'}, {'q': 'كم عدد أركان الإسلام؟', 'options': ['أربعة', 'خمسة', 'ستة'], 'answer': 1, 'fact': 'الشهادتان والصلاة والزكاة والصوم والحج.'}], 'sources': ['https://quran.com/', 'https://quran.com/2/144', 'https://sunnah.com/bukhari:8']}, {'id': 'iq-v2-oscars', 'topic': 'الأوسكار', 'hook': 'تايتانيك كسب كام أوسكار؟', 'hashtag': 'سينما', 'questions': [{'q': 'كم أوسكارًا فاز بها Titanic؟', 'options': ['11', '14', '9'], 'answer': 0, 'fact': 'حصد 11 جائزة في حفل 1998.'}, {'q': 'من أخرج Titanic؟', 'options': ['كريستوفر نولان', 'جيمس كاميرون', 'ستيفن سبيلبرغ'], 'answer': 1, 'fact': 'جيمس كاميرون فاز بجائزة الإخراج.'}, {'q': 'أي فيلم فاز بأفضل فيلم في حفل 2020؟', 'options': ['1917', 'Parasite', 'Joker'], 'answer': 1, 'fact': 'Parasite فاز بأربع جوائز في ذلك الحفل.'}, {'q': 'من أخرج Parasite؟', 'options': ['بونغ جون هو', 'جيمس كاميرون', 'مارتن سكورسيزي'], 'answer': 0, 'fact': 'بونغ جون هو مخرج الفيلم.'}, {'q': 'أغنية My Heart Will Go On مرتبطة بفيلم...', 'options': ['Titanic', 'Avatar', 'Jaws'], 'answer': 0, 'fact': 'فازت بأوسكار الأغنية الأصلية في 1998.'}], 'sources': ['https://www.oscars.org/oscars/ceremonies/1998', 'https://www.oscars.org/oscars/ceremonies/2020']}, {'id': 'iq-v2-percent', 'topic': 'النسب المئوية', 'hook': 'خصم 20% ثم 20%: كام؟', 'hashtag': 'رياضيات', 'questions': [{'q': '20% من 150 تساوي...', 'options': ['20', '40', '30'], 'answer': 2, 'fact': '150 × 0.2 = 30.'}, {'q': 'خصم 20% مرتين من 100 يترك...', 'options': ['80', '60', '64'], 'answer': 2, 'fact': '100 تصبح 80 ثم تصبح 64.'}, {'q': 'رفع 100 بنسبة 50% ثم خفضها 50% يترك...', 'options': ['50', '75', '100'], 'answer': 1, 'fact': '100 تصبح 150 ثم تصبح 75.'}, {'q': '10% من 240 تساوي...', 'options': ['12', '48', '24'], 'answer': 2, 'fact': 'اقسم 240 على عشرة.'}, {'q': 'زاد سعر 200 بنسبة 25%. أصبح...', 'options': ['240', '250', '225'], 'answer': 1, 'fact': 'الزيادة 50 والناتج 250.'}], 'sources': []}, {'id': 'iq-v2-egypt', 'topic': 'آثار مصر', 'hook': 'قد إيه تعرف آثار مصر؟', 'hashtag': 'مصر', 'questions': [{'q': 'في أي منطقة تقع الأهرامات الثلاثة الشهيرة؟', 'options': ['أسوان', 'الأقصر', 'الجيزة'], 'answer': 2, 'fact': 'تشمل أهرامات خوفو وخفرع ومنقرع.'}, {'q': 'أبو سمبل يرتبط أساسًا بأي ملك؟', 'options': ['أحمس', 'رمسيس الثاني', 'توت عنخ آمون'], 'answer': 1, 'fact': 'تشتهر المنطقة بمعابد رمسيس الثاني.'}, {'q': 'معبد الكرنك يقع في...', 'options': ['الإسكندرية', 'الأقصر', 'القاهرة'], 'answer': 1, 'fact': 'الأقصر هي موقع طيبة القديمة.'}, {'q': 'هرم خوفو يقع في...', 'options': ['إدفو', 'الأقصر', 'الجيزة'], 'answer': 2, 'fact': 'خوفو أحد أهرامات الجيزة.'}, {'q': 'هرم زوسر المدرج يوجد في...', 'options': ['أبو سمبل', 'دهشور', 'سقارة'], 'answer': 2, 'fact': 'سقارة جزء من جبانة منف القديمة.'}], 'sources': ['https://whc.unesco.org/en/list/86/', 'https://whc.unesco.org/en/list/88/', 'https://whc.unesco.org/en/list/87/']}, {'id': 'iq-v2-animals', 'topic': 'عجائب الحيوانات', 'hook': 'الأخطبوط عنده كام قلب؟', 'hashtag': 'حيوانات', 'questions': [{'q': 'كم قلبًا للأخطبوط؟', 'options': ['ثلاثة', 'واحد', 'أربعة'], 'answer': 0, 'fact': 'قلبان للخياشيم وقلب لبقية الجسم.'}, {'q': 'الخفاش يُصنف على أنه...', 'options': ['ثديي', 'طائر', 'زاحف'], 'answer': 0, 'fact': 'الخفافيش ثدييات قادرة على الطيران.'}, {'q': 'البطريق يُصنف على أنه...', 'options': ['طائر', 'سمكة', 'ثديي'], 'answer': 0, 'fact': 'هو طائر لا يطير لكنه يسبح.'}, {'q': 'الحوت يُصنف على أنه...', 'options': ['زاحف', 'ثديي', 'سمكة'], 'answer': 1, 'fact': 'الحيتان تتنفس الهواء بالرئتين.'}, {'q': 'كم أرجل للعنكبوت البالغ؟', 'options': ['ثمان', 'عشر', 'ست'], 'answer': 0, 'fact': 'العناكب لها ثماني أرجل.'}], 'sources': ['https://ocean.si.edu/ocean-life/invertebrates/octopuses-squids-and-relatives', 'https://www.si.edu/spotlight/bats', 'https://ocean.si.edu/ocean-life/marine-mammals/whales']}, {'id': 'iq-v2-technology', 'topic': 'مصطلحات التقنية', 'hook': 'RAM ولا ROM ولا CPU؟', 'hashtag': 'تكنولوجيا', 'questions': [{'q': 'ما وحدة المعالجة المركزية؟', 'options': ['CPU', 'USB', 'RAM'], 'answer': 0, 'fact': 'CPU تنفذ تعليمات البرامج.'}, {'q': 'أي ذاكرة تفقد بياناتها عادة عند انقطاع الكهرباء؟', 'options': ['RAM', 'SSD', 'ROM'], 'answer': 0, 'fact': 'RAM ذاكرة متطايرة.'}, {'q': 'كم بِتًّا في البايت الواحد؟', 'options': ['16', '4', '8'], 'answer': 2, 'fact': 'البايت يتكون من ثمانية بتات.'}, {'q': 'الثنائي يستخدم أي رقمين؟', 'options': ['1 و2', '0 و1', '0 و9'], 'answer': 1, 'fact': 'النظام الثنائي يعتمد على صفر وواحد.'}, {'q': 'HTML تُستخدم أساسًا لبناء...', 'options': ['المحركات', 'البطاريات', 'صفحات الويب'], 'answer': 2, 'fact': 'HTML تحدد بنية محتوى صفحة الويب.'}], 'sources': ['https://developer.mozilla.org/en-US/docs/Web/HTML', 'https://www.ibm.com/think/topics/ram']}, {'id': 'iq-v2-mars', 'topic': 'المريخ', 'hook': 'هل تعرف الكوكب الأحمر؟', 'hashtag': 'المريخ', 'questions': [{'q': 'ما ترتيب المريخ من الشمس؟', 'options': ['الثالث', 'الخامس', 'الرابع'], 'answer': 2, 'fact': 'المريخ يأتي بعد الأرض.'}, {'q': 'كم قمرًا طبيعيًا للمريخ؟', 'options': ['ثلاثة', 'اثنان', 'واحد'], 'answer': 1, 'fact': 'اسمهما فوبوس وديموس.'}, {'q': 'ما سبب لون المريخ الأحمر؟', 'options': ['النحاس', 'الذهب', 'أكسيد الحديد'], 'answer': 2, 'fact': 'أكسيد الحديد في تربته يشبه الصدأ.'}, {'q': 'أي كوكب أصغر: الأرض أم المريخ؟', 'options': ['الأرض', 'متساويان', 'المريخ'], 'answer': 2, 'fact': 'قطر المريخ نحو نصف قطر الأرض.'}, {'q': 'غلاف المريخ الجوي يتكون أساسًا من...', 'options': ['الأكسجين', 'ثاني أكسيد الكربون', 'الهيليوم'], 'answer': 1, 'fact': 'ثاني أكسيد الكربون يشكل معظم غلافه.'}], 'sources': ['https://science.nasa.gov/mars/facts/']}, {'id': 'iq-v2-bible', 'topic': 'الكتاب المقدس', 'hook': '٥ أسئلة عن نصوص الكتاب المقدس', 'hashtag': 'ثقافة_دينية', 'questions': [{'q': 'كم إنجيلًا في العهد الجديد؟', 'options': ['خمسة', 'ثلاثة', 'أربعة'], 'answer': 2, 'fact': 'متى ومرقس ولوقا ويوحنا.'}, {'q': 'ما أول إنجيل في ترتيب العهد الجديد؟', 'options': ['متى', 'يوحنا', 'لوقا'], 'answer': 0, 'fact': 'إنجيل متى يأتي أولًا في الترتيب.'}, {'q': 'بحسب إنجيل متى، أين وُلد يسوع؟', 'options': ['الناصرة', 'بيت لحم', 'روما'], 'answer': 1, 'fact': 'متى 2:1 يذكر بيت لحم.'}, {'q': 'من بنى الفلك بحسب سفر التكوين؟', 'options': ['يوسف', 'موسى', 'نوح'], 'answer': 2, 'fact': 'قصة الفلك مرتبطة بنوح.'}, {'q': 'الكتاب المقدس المسيحي ينقسم إلى...', 'options': ['عهد واحد', 'ثلاثة عهود', 'العهد القديم والجديد'], 'answer': 2, 'fact': 'العهد القديم والعهد الجديد قسمان رئيسيان.'}], 'sources': ['https://bible.usccb.org/bible', 'https://bible.usccb.org/bible/matthew/2', 'https://bible.usccb.org/bible/genesis/6']}, {'id': 'iq-v2-sportballs', 'topic': 'رياضات الكرة', 'hook': 'تعرف الملعب من عدد اللاعبين؟', 'hashtag': 'رياضة', 'questions': [{'q': 'كم لاعبًا للفريق في كرة السلة على الملعب؟', 'options': ['4', '5', '6'], 'answer': 1, 'fact': 'كرة السلة تُلعب بخمسة لاعبين لكل فريق.'}, {'q': 'كم لاعبًا للفريق في الكرة الطائرة داخل الصالات؟', 'options': ['5', '7', '6'], 'answer': 2, 'fact': 'ستة لاعبين لكل فريق داخل الملعب.'}, {'q': 'كم لاعبًا لكل جانب في تنس الزوجي؟', 'options': ['ثلاثة', 'واحد', 'اثنان'], 'answer': 2, 'fact': 'زوجان، كل زوج من لاعبين.'}, {'q': 'في تنس الطاولة، هل الكرة تُضرب بمضرب؟', 'options': ['بالقدم', 'لا', 'نعم'], 'answer': 2, 'fact': 'المضرب يستخدم لضرب الكرة.'}, {'q': 'شكل كرة الرجبي أقرب إلى...', 'options': ['مكعب', 'بيضاوي', 'دائري تمامًا'], 'answer': 1, 'fact': 'كرة الرجبي ذات شكل بيضاوي.'}], 'sources': ['https://www.fiba.basketball/en/official-basketball-rules', 'https://www.fivb.com/volleyball/the-game/official-volleyball-rules/', 'https://www.itftennis.com/en/about-us/governance/rules-and-regulations/', 'https://www.world.rugby/the-game/laws/home']}, {'id': 'iq-v2-art', 'topic': 'الفن والأدب', 'hook': 'الموناليزا وشكسبير في تحدٍ واحد', 'hashtag': 'ثقافة', 'questions': [{'q': 'من رسم الموناليزا؟', 'options': ['فان غوخ', 'بيكاسو', 'ليوناردو دافنشي'], 'answer': 2, 'fact': 'الموناليزا من أعمال ليوناردو دافنشي.'}, {'q': 'من كتب مسرحية هاملت؟', 'options': ['تولستوي', 'ديكنز', 'شكسبير'], 'answer': 2, 'fact': 'هاملت من مسرحيات ويليام شكسبير.'}, {'q': 'لوحة ليلة النجوم من أعمال...', 'options': ['فان غوخ', 'مونيه', 'بيكاسو'], 'answer': 0, 'fact': 'رسمها فان غوخ في 1889.'}, {'q': 'من كتب رواية البؤساء؟', 'options': ['إرنست همنغواي', 'فيكتور هوغو', 'جورج أورويل'], 'answer': 1, 'fact': 'البؤساء رواية لفيكتور هوغو.'}, {'q': 'أي آلة لها مفاتيح سوداء وبيضاء؟', 'options': ['البيانو', 'العود', 'الكمان'], 'answer': 0, 'fact': 'البيانو آلة موسيقية ذات لوحة مفاتيح.'}], 'sources': ['https://www.louvre.fr/en/explore/the-palace/from-the-mona-lisa-to-the-wedding-feast-at-cana', 'https://www.moma.org/collection/works/79802', 'https://www.folger.edu/explore/shakespeares-works/hamlet/']}, {'id': 'iq-v2-logic', 'topic': 'منطق سريع', 'hook': 'ركز في السؤال مش السرعة', 'hashtag': 'ألغاز', 'questions': [{'q': 'تجاوزت صاحب المركز الثاني. أصبحت...', 'options': ['الثاني', 'الثالث', 'الأول'], 'answer': 0, 'fact': 'أخذت مكانه في المركز الثاني.'}, {'q': 'كل مربع مستطيل. هل كل مستطيل مربع؟', 'options': ['لا', 'نعم', 'دائمًا'], 'answer': 0, 'fact': 'المستطيل قد تكون أضلاعه غير متساوية.'}, {'q': 'أمامك 3 تفاحات وأخذت 2. كم أخذت؟', 'options': ['ثلاث', 'اثنتين', 'واحدة'], 'answer': 1, 'fact': 'السؤال عن المأخوذ وليس المتبقي.'}, {'q': 'كل القطط حيوانات. هل كل الحيوانات قطط؟', 'options': ['لا', 'نعم', 'دائمًا'], 'answer': 0, 'fact': 'هناك حيوانات أخرى غير القطط.'}, {'q': 'أيهما أثقل: كيلو حديد أم كيلو قطن؟', 'options': ['متساويان', 'القطن', 'الحديد'], 'answer': 0, 'fact': 'الكتلة واحدة: كيلوغرام لكل منهما.'}], 'sources': []}, {'id': 'iq-v2-geography', 'topic': 'عواصم العالم', 'hook': 'سيدني مش عاصمة أستراليا!', 'hashtag': 'جغرافيا', 'questions': [{'q': 'ما عاصمة أستراليا؟', 'options': ['ملبورن', 'كانبرا', 'سيدني'], 'answer': 1, 'fact': 'كانبرا هي العاصمة الاتحادية.'}, {'q': 'ما عاصمة تركيا؟', 'options': ['إزمير', 'إسطنبول', 'أنقرة'], 'answer': 2, 'fact': 'إسطنبول أكبر المدن وليست العاصمة.'}, {'q': 'ما عاصمة البرازيل؟', 'options': ['ريو دي جانيرو', 'برازيليا', 'ساو باولو'], 'answer': 1, 'fact': 'برازيليا هي العاصمة الاتحادية.'}, {'q': 'ما عاصمة المغرب؟', 'options': ['فاس', 'الدار البيضاء', 'الرباط'], 'answer': 2, 'fact': 'الرباط هي العاصمة.'}, {'q': 'ما عاصمة كندا؟', 'options': ['تورونتو', 'أوتاوا', 'مونتريال'], 'answer': 1, 'fact': 'أوتاوا هي العاصمة الكندية.'}], 'sources': ['https://www.dfat.gov.au/about-australia']}, {'id': 'iq-v2-moon', 'topic': 'القمر', 'hook': 'القمر لا يصنع ضوءه!', 'hashtag': 'القمر', 'questions': [{'q': 'من أين يأتي ضوء القمر؟', 'options': ['من الشمس', 'من الأرض', 'من داخله'], 'answer': 0, 'fact': 'القمر يعكس ضوء الشمس.'}, {'q': 'أثناء كسوف الشمس، ما الجسم الأوسط؟', 'options': ['القمر', 'المريخ', 'الأرض'], 'answer': 0, 'fact': 'القمر يمر بين الأرض والشمس.'}, {'q': 'أثناء خسوف القمر، ما الجسم الأوسط؟', 'options': ['الأرض', 'الشمس', 'القمر'], 'answer': 0, 'fact': 'ظل الأرض يقع على القمر.'}, {'q': 'لماذا نرى وجهًا واحدًا للقمر غالبًا؟', 'options': ['له وجه واحد', 'لا يدور', 'دورانه متزامن'], 'answer': 2, 'fact': 'مدة دورانه حول نفسه تساوي مدة مداره.'}, {'q': 'كم قمرًا طبيعيًا للأرض؟', 'options': ['اثنان', 'واحد', 'ثلاثة'], 'answer': 1, 'fact': 'القمر هو تابع الأرض الطبيعي الوحيد.'}], 'sources': ['https://science.nasa.gov/moon/facts/']}, {'id': 'iq-v2-pixar', 'topic': 'أفلام بيكسار', 'hook': 'تفتكر شخصيات بيكسار؟', 'hashtag': 'أفلام', 'questions': [{'q': 'في Toy Story، وودي لعبة على هيئة...', 'options': ['رائد فضاء', 'راعي بقر', 'قرصان'], 'answer': 1, 'fact': 'وودي هو راعي البقر الشهير.'}, {'q': 'باز يطير يرتدي زي...', 'options': ['طبيب', 'رائد فضاء', 'شرطي'], 'answer': 1, 'fact': 'باز لعبة حارس فضاء.'}, {'q': 'في Finding Nemo، نيمو سمكة...', 'options': ['قرش', 'سردين', 'مهرج'], 'answer': 2, 'fact': 'نيمو ووالده من أسماك المهرج.'}, {'q': 'في Ratatouille، ريمي هو...', 'options': ['فأر', 'كلب', 'قط'], 'answer': 0, 'fact': 'ريمي فأر يحلم بالطهي.'}, {'q': 'في WALL-E، الشخصية الرئيسية هي...', 'options': ['روبوت', 'ديناصور', 'سيارة'], 'answer': 0, 'fact': 'WALL-E روبوت لجمع النفايات.'}], 'sources': ['https://www.pixar.com/toy-story', 'https://www.pixar.com/finding-nemo', 'https://www.pixar.com/ratatouille', 'https://www.pixar.com/wall-e']}, {'id': 'iq-v2-history', 'topic': 'محطات تاريخية', 'hook': 'مين سبق مين في التاريخ؟', 'hashtag': 'تاريخ', 'questions': [{'q': 'سقطت القسطنطينية عام...', 'options': ['1517', '1453', '1492'], 'answer': 1, 'fact': 'فتحها العثمانيون في 1453.'}, {'q': 'بدأت الحرب العالمية الأولى عام...', 'options': ['1918', '1912', '1914'], 'answer': 2, 'fact': 'بدأت الحرب في 1914 وانتهت في 1918.'}, {'q': 'انتهت الحرب العالمية الثانية عام...', 'options': ['1940', '1942', '1945'], 'answer': 2, 'fact': 'انتهت الحرب العالمية الثانية في 1945.'}, {'q': 'من أول إنسان مشى على القمر؟', 'options': ['باز ألدرين', 'يوري غاغارين', 'نيل أرمسترونغ'], 'answer': 2, 'fact': 'أرمسترونغ أول من خطا على القمر.'}, {'q': 'أول هبوط بشري على القمر كان عام...', 'options': ['1972', '1969', '1965'], 'answer': 1, 'fact': 'مهمة أبولو 11 هبطت في يوليو 1969.'}], 'sources': ['https://www.iwm.org.uk/history/first-world-war', 'https://www.iwm.org.uk/history/second-world-war', 'https://www.nasa.gov/mission/apollo-11/']}, {'id': 'iq-v2-torah', 'topic': 'التوراة والتقاليد اليهودية', 'hook': 'اختبر معرفتك بالثقافة الدينية', 'hashtag': 'ثقافة_دينية', 'questions': [{'q': 'كم سفرًا في أسفار موسى الخمسة؟', 'options': ['ثلاثة', 'سبعة', 'خمسة'], 'answer': 2, 'fact': 'تُعرف أيضًا بالتوراة المكتوبة.'}, {'q': 'ما أول أسفار التوراة؟', 'options': ['التكوين', 'الخروج', 'العدد'], 'answer': 0, 'fact': 'سفر التكوين هو الأول.'}, {'q': 'ما ثاني أسفار التوراة؟', 'options': ['اللاويين', 'الخروج', 'التثنية'], 'answer': 1, 'fact': 'سفر الخروج يأتي بعد التكوين.'}, {'q': 'كم يومًا يستمر عيد حانوكا؟', 'options': ['عشرة', 'سبعة', 'ثمانية'], 'answer': 2, 'fact': 'حانوكا يستمر ثمانية أيام.'}, {'q': 'ما السفر الثالث في أسفار التوراة؟', 'options': ['اللاويين', 'التكوين', 'التثنية'], 'answer': 0, 'fact': 'الترتيب يبدأ بالتكوين، ثم الخروج، ثم اللاويين.'}], 'sources': ['https://www.chabad.org/library/article_cdo/aid/3912290/jewish/What-Are-the-Five-Books-of-Moses.htm', 'https://www.chabad.org/holidays/chanukah/article_cdo/aid/105043/jewish/About-Chanukah.htm']}, {'id': 'iq-v2-plants', 'topic': 'عالم النباتات', 'hook': 'النبات يصنع غذاءه كيف؟', 'hashtag': 'النباتات', 'questions': [{'q': 'ما العملية التي يصنع بها النبات غذاءه بالضوء؟', 'options': ['البناء الضوئي', 'التكاثف', 'التجمد'], 'answer': 0, 'fact': 'يستخدم الضوء والماء وثاني أكسيد الكربون.'}, {'q': 'ما الغاز الذي يستهلكه النبات في البناء الضوئي؟', 'options': ['الهيليوم', 'النيون', 'ثاني أكسيد الكربون'], 'answer': 2, 'fact': 'الكربون يدخل في تكوين السكريات.'}, {'q': 'ما الغاز الذي ينتج من البناء الضوئي؟', 'options': ['الهيدروجين', 'الأكسجين', 'النيتروجين'], 'answer': 1, 'fact': 'ينطلق الأكسجين خلال هذه العملية.'}, {'q': 'أي صبغة ترتبط بلون الأوراق الأخضر؟', 'options': ['الهيموغلوبين', 'الكلوروفيل', 'الميلانين'], 'answer': 1, 'fact': 'الكلوروفيل يمتص الضوء للبناء الضوئي.'}, {'q': 'أي مادة يصنعها النبات بالبناء الضوئي؟', 'options': ['الحديد', 'الزجاج', 'الجلوكوز'], 'answer': 2, 'fact': 'الجلوكوز سكر يخزن الطاقة الكيميائية.'}], 'sources': ['https://www.kew.org/kew-gardens/school-visits/browse-sessions/key-stage-3/plants-adaptations-and-photosynthesis']}, {'id': 'iq-v2-mental', 'topic': 'حساب سريع', 'hook': 'احسبها قبل انتهاء الوقت', 'hashtag': 'رياضيات', 'questions': [{'q': 'كم يساوي 25 × 4؟', 'options': ['125', '100', '75'], 'answer': 1, 'fact': 'أربعة أرباع من مئة تساوي مئة.'}, {'q': 'كم يساوي 99 + 101؟', 'options': ['200', '199', '201'], 'answer': 0, 'fact': 'انقل واحدًا ليصبح الجمع 100 + 100.'}, {'q': 'كم يساوي 12 × 12؟', 'options': ['124', '144', '132'], 'answer': 1, 'fact': '12 × 10 ثم أضف 12 × 2.'}, {'q': 'كم يساوي 15 × 6؟', 'options': ['90', '60', '120'], 'answer': 0, 'fact': '15 × 3 ثم ضاعف الناتج.'}, {'q': 'كم يساوي 1000 ÷ 25؟', 'options': ['40', '25', '50'], 'answer': 0, 'fact': '25 × 40 = 1000.'}], 'sources': []}, {'id': 'iq-v2-sun', 'topic': 'الشمس', 'hook': '٥ حقائق عن أقرب نجم', 'hashtag': 'الشمس', 'questions': [{'q': 'الشمس تُصنف على أنها...', 'options': ['قمر', 'كوكب', 'نجم'], 'answer': 2, 'fact': 'الشمس هي نجم مجموعتنا الشمسية.'}, {'q': 'ما العنصر الأكثر وفرة في الشمس؟', 'options': ['الأكسجين', 'الحديد', 'الهيدروجين'], 'answer': 2, 'fact': 'الهيدروجين هو الوقود الأساسي للشمس.'}, {'q': 'كم يستغرق ضوء الشمس ليصل للأرض تقريبًا؟', 'options': ['ساعة', 'ثماني دقائق', 'ثانية'], 'answer': 1, 'fact': 'يقطع الضوء نحو 150 مليون كيلومتر.'}, {'q': 'الشمس تقع في أي مجرة؟', 'options': ['سحابة ماجلان', 'أندروميدا', 'درب التبانة'], 'answer': 2, 'fact': 'مجموعتنا الشمسية داخل درب التبانة.'}, {'q': 'طاقة الشمس تنتج أساسًا من...', 'options': ['الاندماج النووي', 'احتراق الخشب', 'الانشطار'], 'answer': 0, 'fact': 'تندمج نوى الهيدروجين لتكوين الهيليوم.'}], 'sources': ['https://science.nasa.gov/sun/facts/']}, {'id': 'iq-v2-geometry', 'topic': 'الهندسة', 'hook': 'زوايا وأشكال تختبر تركيزك', 'hashtag': 'رياضيات', 'questions': [{'q': 'مجموع زوايا المثلث في الهندسة المستوية؟', 'options': ['360 درجة', '90 درجة', '180 درجة'], 'answer': 2, 'fact': 'مجموع الزوايا الداخلية 180 درجة.'}, {'q': 'كم درجة في الزاوية القائمة؟', 'options': ['90 درجة', '45 درجة', '180 درجة'], 'answer': 0, 'fact': 'الزاوية القائمة ربع دورة كاملة.'}, {'q': 'كم ضلعًا للشكل السداسي؟', 'options': ['سبعة', 'ستة', 'خمسة'], 'answer': 1, 'fact': 'السداسي له ستة أضلاع.'}, {'q': 'كم قطرًا للمربع؟', 'options': ['اثنان', 'أربعة', 'واحد'], 'answer': 0, 'fact': 'يصل كل قطر بين رأسين متقابلين.'}, {'q': 'مجموع زوايا المربع الداخلية؟', 'options': ['180 درجة', '360 درجة', '270 درجة'], 'answer': 1, 'fact': 'أربع زوايا قائمة: 4 × 90.'}], 'sources': []}, {'id': 'iq-v2-symbols', 'topic': 'رموز العناصر', 'hook': 'هل تعرف هذه الرموز؟', 'hashtag': 'الكيمياء', 'questions': [{'q': 'ما العنصر الذي رمزه Au؟', 'options': ['الألومنيوم', 'الذهب', 'الفضة'], 'answer': 1, 'fact': 'رمز الذهب مأخوذ من اسمه اللاتيني.'}, {'q': 'ما العنصر الذي رمزه Fe؟', 'options': ['الفلور', 'الفضة', 'الحديد'], 'answer': 2, 'fact': 'الحديد عنصر فلزي.'}, {'q': 'ما العنصر الذي رمزه Na؟', 'options': ['النيون', 'الصوديوم', 'النيتروجين'], 'answer': 1, 'fact': 'الصوديوم فلز قلوي.'}, {'q': 'رمز الأكسجين هو...', 'options': ['Ox', 'O', 'Om'], 'answer': 1, 'fact': 'الحرف O هو رمز الأكسجين.'}, {'q': 'رمز البوتاسيوم هو...', 'options': ['P', 'Po', 'K'], 'answer': 2, 'fact': 'البوتاسيوم رمزه K.'}], 'sources': ['https://periodic-table.rsc.org/']}, {'id': 'iq-v2-time', 'topic': 'حساب الوقت', 'hook': '90 دقيقة مش 1.9 ساعة!', 'hashtag': 'ألغاز', 'questions': [{'q': '90 دقيقة تساوي...', 'options': ['ساعة وربع', 'ساعة ونصف', 'ساعتين'], 'answer': 1, 'fact': '60 دقيقة + 30 دقيقة.'}, {'q': 'بدأ فيلم 7:45 ومدته 90 دقيقة. ينتهي...', 'options': ['9:45', '9:15', '8:45'], 'answer': 1, 'fact': 'أضف ساعة ثم نصف ساعة.'}, {'q': 'كم ثانية في خمس دقائق؟', 'options': ['300', '250', '360'], 'answer': 0, 'fact': '5 × 60 = 300 ثانية.'}, {'q': 'كم دقيقة في ساعتين ونصف؟', 'options': ['180', '150', '120'], 'answer': 1, 'fact': '120 + 30 = 150 دقيقة.'}, {'q': 'كم ساعة في ثلاثة أيام؟', 'options': ['60', '72', '48'], 'answer': 1, 'fact': '3 × 24 = 72 ساعة.'}], 'sources': []}, {'id': 'iq-v2-electricity', 'topic': 'الكهرباء', 'hook': 'هل تفرق بين الفولت والأمبير؟', 'hashtag': 'الكهرباء', 'questions': [{'q': 'بأي وحدة نقيس شدة التيار؟', 'options': ['فولت', 'أمبير', 'أوم'], 'answer': 1, 'fact': 'الأمبير وحدة شدة التيار الكهربائي.'}, {'q': 'بأي وحدة نقيس فرق الجهد؟', 'options': ['أمبير', 'فولت', 'واط'], 'answer': 1, 'fact': 'الفولت وحدة فرق الجهد.'}, {'q': 'بأي وحدة نقيس المقاومة؟', 'options': ['هرتز', 'أوم', 'جول'], 'answer': 1, 'fact': 'المقاومة الكهربائية تقاس بالأوم.'}, {'q': 'الفولت ÷ الأمبير يساوي...', 'options': ['واط', 'أوم', 'هرتز'], 'answer': 1, 'fact': 'من قانون أوم: المقاومة = الجهد ÷ التيار.'}, {'q': 'الفولت × الأمبير يساوي...', 'options': ['واط', 'كلفن', 'أوم'], 'answer': 0, 'fact': 'القدرة = الجهد × شدة التيار.'}], 'sources': ['https://www.nist.gov/pml/special-publication-330/sp-330-section-2']}, {'id': 'iq-v2-fractions', 'topic': 'الكسور', 'hook': 'أي كسر أكبر؟', 'hashtag': 'رياضيات', 'questions': [{'q': 'أي كسر أكبر؟', 'options': ['نصف', 'ثلثان', 'ثلاثة أرباع'], 'answer': 2, 'fact': 'ثلاثة أرباع = 0.75.'}, {'q': 'نصف + ربع يساوي...', 'options': ['ثلاثة أرباع', 'ثلث', 'ربعين'], 'answer': 0, 'fact': 'نصف يساوي ربعين؛ أضف ربعًا.'}, {'q': 'ثلاثة أثمان من 80 تساوي...', 'options': ['25', '20', '30'], 'answer': 2, 'fact': '80 ÷ 8 × 3 = 30.'}, {'q': 'ربع 100 يساوي...', 'options': ['50', '25', '40'], 'answer': 1, 'fact': '100 ÷ 4 = 25.'}, {'q': 'أي كسر يساوي النصف؟', 'options': ['واحد من أربعة', 'ثلاثة من أربعة', 'اثنان من أربعة'], 'answer': 2, 'fact': '2 ÷ 4 = 0.5.'}], 'sources': []}, {'id': 'iq-v2-metals', 'topic': 'الفلزات', 'hook': 'فلز سائل في درجة الغرفة؟', 'hashtag': 'علوم', 'questions': [{'q': 'أي فلز سائل عند 20 درجة مئوية؟', 'options': ['الزئبق', 'الحديد', 'النحاس'], 'answer': 0, 'fact': 'الزئبق يبقى سائلًا في هذه الدرجة.'}, {'q': 'أي عنصر رمزه Ag؟', 'options': ['الفضة', 'المغنيسيوم', 'الذهب'], 'answer': 0, 'fact': 'الفضة فلز موصل للكهرباء.'}, {'q': 'أي عنصر رمزه Cu؟', 'options': ['الكالسيوم', 'الكربون', 'النحاس'], 'answer': 2, 'fact': 'النحاس شائع في الأسلاك الكهربائية.'}, {'q': 'الألومنيوم رمزه...', 'options': ['Am', 'Al', 'Au'], 'answer': 1, 'fact': 'رمز الألومنيوم Al، أما Au فهو الذهب.'}, {'q': 'أي فلز أخف من الثلاثة؟', 'options': ['الليثيوم', 'النحاس', 'الحديد'], 'answer': 0, 'fact': 'الليثيوم أقل كثافة من الحديد والنحاس.'}], 'sources': ['https://periodic-table.rsc.org/']}, {'id': 'iq-v2-patterns', 'topic': 'أنماط الأرقام', 'hook': 'أكمل النمط الحسابي', 'hashtag': 'ألغاز', 'questions': [{'q': 'نضاعف كل مرة: 3، 6، 12، ثم؟', 'options': ['24', '30', '18'], 'answer': 0, 'fact': '12 × 2 = 24.'}, {'q': 'نزيد ثلاثة: 4، 7، 10، ثم؟', 'options': ['15', '14', '13'], 'answer': 2, 'fact': '10 + 3 = 13.'}, {'q': 'مربعات الأعداد: 1، 4، 9، ثم؟', 'options': ['14', '16', '12'], 'answer': 1, 'fact': 'المربع التالي هو 4 × 4.'}, {'q': 'نطرح خمسة: 30، 25، 20، ثم؟', 'options': ['10', '15', '18'], 'answer': 1, 'fact': '20 - 5 = 15.'}, {'q': 'نضاعف ونضيف واحدًا: 1، 3، 7، ثم؟', 'options': ['14', '15', '11'], 'answer': 1, 'fact': '7 × 2 + 1 = 15.'}], 'sources': []}, {'id': 'iq-v2-atoms', 'topic': 'داخل الذرة', 'hook': 'هل تعرف شحنات الذرة؟', 'hashtag': 'الكيمياء', 'questions': [{'q': 'ما شحنة الإلكترون؟', 'options': ['موجبة', 'سالبة', 'متعادل'], 'answer': 1, 'fact': 'الإلكترون جسيم سالب الشحنة.'}, {'q': 'ما شحنة البروتون؟', 'options': ['سالبة', 'موجبة', 'متعادل'], 'answer': 1, 'fact': 'البروتون موجود في نواة الذرة.'}, {'q': 'العدد الذري يساوي عدد...', 'options': ['كل الجسيمات', 'البروتونات', 'النيوترونات'], 'answer': 1, 'fact': 'عدد البروتونات يحدد هوية العنصر.'}, {'q': 'ما شحنة النيوترون؟', 'options': ['موجبة', 'متعادل', 'سالبة'], 'answer': 1, 'fact': 'النيوترون لا يحمل شحنة كهربائية.'}, {'q': 'نواة الذرة تحتوي عادة على...', 'options': ['فوتونات فقط', 'إلكترونات فقط', 'بروتونات ونيوترونات'], 'answer': 2, 'fact': 'الإلكترونات توجد خارج النواة.'}], 'sources': ['https://periodic-table.rsc.org/']}, {'id': 'iq-v2-area', 'topic': 'المساحة والمحيط', 'hook': 'المساحة مش المحيط', 'hashtag': 'رياضيات', 'questions': [{'q': 'مربع ضلعه 5. ما محيطه؟', 'options': ['20', '25', '10'], 'answer': 0, 'fact': 'المحيط = 4 × طول الضلع.'}, {'q': 'مربع ضلعه 5. ما مساحته؟', 'options': ['20', '25', '10'], 'answer': 1, 'fact': 'المساحة = طول الضلع × نفسه.'}, {'q': 'مستطيل طوله 8 وعرضه 3. ما مساحته؟', 'options': ['22', '11', '24'], 'answer': 2, 'fact': 'المساحة = الطول × العرض.'}, {'q': 'مستطيل طوله 8 وعرضه 3. محيطه؟', 'options': ['24', '22', '11'], 'answer': 1, 'fact': '2 × (8 + 3) = 22.'}, {'q': 'مربع تضاعف ضلعه. مساحته تصبح...', 'options': ['ثلاثة أضعاف', 'ضعفين', 'أربعة أضعاف'], 'answer': 2, 'fact': 'المساحة تتناسب مع مربع الضلع.'}], 'sources': []}, {'id': 'iq-v2-elements', 'topic': 'عناصر غريبة', 'hook': 'الألماس والجرافيت: نفس العنصر؟', 'hashtag': 'الكيمياء', 'questions': [{'q': 'الألماس والجرافيت صورتان لأي عنصر؟', 'options': ['الكربون', 'السيليكون', 'الكالسيوم'], 'answer': 0, 'fact': 'اختلاف ترتيب الذرات يغير الخواص.'}, {'q': 'ما أخف عنصر في الجدول الدوري؟', 'options': ['الهيدروجين', 'الأكسجين', 'الهيليوم'], 'answer': 0, 'fact': 'الهيدروجين عدده الذري واحد.'}, {'q': 'ما الغاز المستخدم لملء بالونات الطفو؟', 'options': ['الحديد', 'الهيليوم', 'الأكسجين'], 'answer': 1, 'fact': 'الهيليوم أخف من الهواء.'}, {'q': 'عدد الكربون الذري هو...', 'options': ['12', '6', '8'], 'answer': 1, 'fact': 'الكربون يحتوي على ستة بروتونات.'}, {'q': 'رمز الكالسيوم هو...', 'options': ['Ca', 'C', 'K'], 'answer': 0, 'fact': 'الكالسيوم رمزه Ca.'}], 'sources': ['https://periodic-table.rsc.org/']}, {'id': 'iq-v2-probability', 'topic': 'الاحتمالات', 'hook': 'عملة عادلة: هل الحظ يتذكر؟', 'hashtag': 'رياضيات', 'questions': [{'q': 'احتمال صورة في رمية عملة عادلة؟', 'options': ['50%', '75%', '25%'], 'answer': 0, 'fact': 'هناك نتيجتان متساويتان في الاحتمال.'}, {'q': 'ظهرت صورة 3 مرات. احتمال صورة في الرمية التالية؟', 'options': ['100%', '50%', '25%'], 'answer': 1, 'fact': 'الرميات المستقلة لا تتذكر الماضي.'}, {'q': 'حجر نرد عادل: احتمال عدد زوجي؟', 'options': ['نصف', 'سدس', 'ثلث'], 'answer': 0, 'fact': 'الأعداد الزوجية هي 2 و4 و6.'}, {'q': 'نرد عادل: احتمال ظهور 6؟', 'options': ['نصف', 'سدس', 'ثلث'], 'answer': 1, 'fact': 'وجه واحد من ستة أوجه.'}, {'q': 'عملة عادلة مرتين: احتمال صورتين؟', 'options': ['نصف', 'ثلاثة أرباع', 'ربع'], 'answer': 2, 'fact': 'نصف × نصف = ربع.'}], 'sources': []}, {'id': 'iq-v2-units', 'topic': 'وحدات القياس', 'hook': 'هرتز أم واط أم جول؟', 'hashtag': 'فيزياء', 'questions': [{'q': 'بأي وحدة نقيس التردد؟', 'options': ['جول', 'واط', 'هرتز'], 'answer': 2, 'fact': 'هرتز واحد يعني دورة في الثانية.'}, {'q': 'بأي وحدة نقيس القدرة؟', 'options': ['واط', 'باسكال', 'نيوتن'], 'answer': 0, 'fact': 'الواط يساوي جولًا في الثانية.'}, {'q': 'بأي وحدة نقيس القوة؟', 'options': ['أوم', 'فولت', 'نيوتن'], 'answer': 2, 'fact': 'النيوتن هو وحدة القوة في النظام الدولي.'}, {'q': 'وحدة الضغط في SI هي...', 'options': ['واط', 'باسكال', 'هرتز'], 'answer': 1, 'fact': 'الباسكال يساوي نيوتن لكل متر مربع.'}, {'q': 'وحدة الطاقة في SI هي...', 'options': ['أمبير', 'نيوتن', 'جول'], 'answer': 2, 'fact': 'الجول وحدة الطاقة والشغل.'}], 'sources': ['https://www.nist.gov/pml/special-publication-330/sp-330-section-2']}, {'id': 'iq-v2-powers', 'topic': 'القوى والجذور', 'hook': 'الجذر ولا التربيع؟', 'hashtag': 'رياضيات', 'questions': [{'q': 'الجذر التربيعي الموجب لـ81؟', 'options': ['9', '8', '10'], 'answer': 0, 'fact': '9 × 9 = 81.'}, {'q': '2 للقوة الخامسة يساوي...', 'options': ['25', '32', '10'], 'answer': 1, 'fact': '2 × 2 × 2 × 2 × 2 = 32.'}, {'q': '10 للقوة الثالثة يساوي...', 'options': ['30', '1000', '100'], 'answer': 1, 'fact': '10 × 10 × 10 = 1000.'}, {'q': 'الجذر التربيعي الموجب لـ144؟', 'options': ['12', '14', '11'], 'answer': 0, 'fact': '12 × 12 = 144.'}, {'q': '3 للقوة الثالثة يساوي...', 'options': ['18', '27', '9'], 'answer': 1, 'fact': '3 × 3 × 3 = 27.'}], 'sources': []}, {'id': 'iq-v2-measure', 'topic': 'قياسات تهمك', 'hook': 'هل الكيلوغرام وحدة قوة؟', 'hashtag': 'علوم', 'questions': [{'q': 'الكيلوغرام وحدة قياس...', 'options': ['الكتلة', 'القوة', 'الطول'], 'answer': 0, 'fact': 'الكتلة تختلف عن الوزن الذي هو قوة.'}, {'q': 'ما وحدة درجة الحرارة الأساسية في SI؟', 'options': ['فهرنهايت', 'مئوية', 'كلفن'], 'answer': 2, 'fact': 'الكلفن هو وحدة الحرارة الأساسية.'}, {'q': 'كم مترًا في كيلومتر واحد؟', 'options': ['100', '10000', '1000'], 'answer': 2, 'fact': 'البادئة كيلو تعني ألفًا.'}, {'q': 'كم سنتيمترًا في المتر؟', 'options': ['100', '10', '1000'], 'answer': 0, 'fact': 'السنتيمتر جزء من مئة من المتر.'}, {'q': 'كم غرامًا في الكيلوغرام؟', 'options': ['1000', '10', '100'], 'answer': 0, 'fact': 'الكيلوغرام يساوي ألف غرام.'}], 'sources': ['https://www.nist.gov/pml/special-publication-330/sp-330-section-2']}, {'id': 'iq-v2-order', 'topic': 'ترتيب العمليات', 'hook': 'الجمع الأول ولا الضرب؟', 'hashtag': 'رياضيات', 'questions': [{'q': 'كم يساوي 6 + 2 × 3؟', 'options': ['12', '18', '24'], 'answer': 0, 'fact': 'نحسب الضرب قبل الجمع.'}, {'q': 'كم يساوي (6 + 2) × 3؟', 'options': ['18', '12', '24'], 'answer': 2, 'fact': 'الأقواس تُحسب أولًا.'}, {'q': 'كم يساوي 20 - 12 ÷ 4؟', 'options': ['5', '17', '2'], 'answer': 1, 'fact': '12 ÷ 4 = 3 ثم 20 - 3.'}, {'q': 'كم يساوي 3 × (4 + 1)؟', 'options': ['13', '20', '15'], 'answer': 2, 'fact': 'الأقواس أولًا ثم الضرب.'}, {'q': 'كم يساوي 18 ÷ 3 + 2؟', 'options': ['6', '8', '10'], 'answer': 1, 'fact': '18 ÷ 3 = 6 ثم أضف 2.'}], 'sources': []}]
+          import os,sys,json,math,re,wave,array,subprocess,shutil,random,asyncio
+          from pathlib import Path
+          from PIL import Image,ImageDraw,ImageFont
+          import arabic_reshaper
+          from bidi.algorithm import get_display
+          W,H,FPS,DURATION=720,1280,10,50
+          FONT='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+          PALETTES=['#5EEAD4','#A78BFA','#FBBF24','#60A5FA','#FB7185','#4ADE80']
+          FONTS={}
+          def font(size):
+              if size not in FONTS: FONTS[size]=ImageFont.truetype(FONT,size,layout_engine=ImageFont.Layout.BASIC)
+              return FONTS[size]
+          def rtl(s): return get_display(arabic_reshaper.reshape(str(s)))
+          def lines(s,size,width):
+              out=[]; current=''
+              for word in str(s).split():
+                  attempt=(current+' '+word).strip()
+                  if font(size).getlength(rtl(attempt))>width and current: out.append(current); current=word
+                  else: current=attempt
+              if current: out.append(current)
+              return out
+          
+          def label(draw,s,y,size=40,color='white',width=570,maxlines=3):
+              while len(lines(s,size,width))>maxlines and size>20: size-=2
+              wrapped=lines(s,size,width)
+              if len(wrapped)>maxlines: raise ValueError('Text too long')
+              for i,line in enumerate(wrapped): draw.text((360,y+(i-(len(wrapped)-1)/2)*size*1.35),rtl(line),font=font(size),fill=color,anchor='mm')
+          
+          def narration(text,path):
+              import edge_tts
+              async def generate():
+                  for attempt in range(3):
+                      try:
+                          await edge_tts.Communicate(text, 'ar-EG-SalmaNeural', rate='+5%').save(str(path))
+                          return
+                      except Exception:
+                          if attempt==2: raise
+                          await asyncio.sleep(1+attempt)
+              asyncio.run(generate())
+              pcm=path.with_suffix('.wav')
+              subprocess.run(['ffmpeg','-v','error','-y','-i',str(path),'-ar','16000','-ac','1','-c:a','pcm_s16le',str(pcm)],check=True)
+              with wave.open(str(pcm),'rb') as wav:
+                  data=array.array('h',wav.readframes(wav.getnframes()))
+              if len(data)<1600: raise RuntimeError('Empty voice; video will not publish')
+              return data
+          
+          def prepare_audio(short,folder):
+              # Spoken input includes questions and explanations; choices and answer labels are excluded.
+              clips=[]
+              intro=narration(short['hook']+'، خمسة أسئلة. احسب نتيجتك.',folder/'intro.mp3')
+              intro_end=math.ceil((len(intro)/16000+.3)*10)/10
+              clips.append((0,intro)); timeline=[]; current=intro_end
+              for qi,q in enumerate(short['questions']):
+                  question=narration(q['q'],folder/f'q{qi}.mp3')
+                  fact=narration(q['fact'],folder/f'fact{qi}.mp3')
+                  reading=math.ceil((len(question)/16000+.3)*10)/10
+                  reveal=current+reading+5
+                  end=math.ceil((reveal+max(3,len(fact)/16000+.7))*10)/10
+                  timeline.append(dict(start=current,reading=reading,reveal=reveal,end=end))
+                  clips.extend([(current,question),(reveal+.4,fact)])
+                  current=end
+              outro=narration('كم إجابة صحيحة من خمسة؟ اكتب نتيجتك في التعليقات.',folder/'outro.mp3')
+              clips.append((current,outro)); duration=math.ceil((current+len(outro)/16000+.5)*10)/10
+              if duration>175: raise RuntimeError('Voice timing exceeds Short limit')
+              samples=array.array('h',[0])*int(duration*16000)
+              def mix(start,data,gain=1):
+                  offset=int(start*16000)
+                  for j,x in enumerate(data):
+                      if offset+j<len(samples): samples[offset+j]=max(-32767,min(32767,samples[offset+j]+int(x*gain)))
+              def tone(start,freq,length=.09,amplitude=.12):
+                  total=int(length*16000)
+                  mix(start,[int(32767*amplitude*math.sin(math.pi*j/total)**2*math.sin(2*math.pi*freq*j/16000)) for j in range(total)])
+              for start,data in clips: mix(start,data)
+              for segment in timeline:
+                  countdown=segment['start']+segment['reading']
+                  for j in range(5): tone(countdown+j,900 if j<3 else 1150)
+                  tone(segment['reveal'],659,.18)
+              path=folder/'mixed.wav'
+              with wave.open(str(path),'wb') as wav:
+                  wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(16000); wav.writeframes(samples.tobytes())
+              return timeline,intro_end,current,duration,path
+          
+          def frame(short,t,index,timing=None):
+              timeline,intro_end,outro_start,duration=timing if timing else ([dict(start=2+qi*9,reading=1,reveal=8+qi*9,end=11+qi*9) for qi in range(5)],2,47,50)
+              accent=PALETTES[index%len(PALETTES)]
+              im=Image.new('RGB',(W,H),'#0B1220'); d=ImageDraw.Draw(im)
+              for k in range(12):
+                  x=int(360+320*math.sin(k*2.3+t*.12)); y=int(640+580*math.cos(k*1.7+t*.1))
+                  d.ellipse((x-3,y-3,x+3,y+3),fill='#27354C')
+              d.rounded_rectangle((55,80,665,1210),28,outline='#26354B',width=2)
+              d.text((90,130),'iQuiz',font=font(42),fill=accent,anchor='lm')
+              label(d,short['topic'],205,34,accent)
+              if t<intro_end:
+                  label(d,short['hook'],455,46)
+                  label(d,'٥ أسئلة · احسب نتيجتك',690,35,accent)
+                  label(d,'هل تكملها ٥ من ٥؟',850,42)
+              elif t>=outro_start:
+                  label(d,'كام إجابة صح من ٥؟',440,46)
+                  label(d,'اكتب نتيجتك في التعليقات',610,36,accent)
+                  label(d,'تحدٍّ جديد على iQuiz',790,38)
+              else:
+                  qi=next(i for i,segment in enumerate(timeline) if segment['start']<=t<segment['end']); segment=timeline[qi]; elapsed=t-segment['start']; q=short['questions'][qi]; reveal=t>=segment['reveal']
+                  label(d,f'السؤال {qi+1} من 5',275,27,'#94A3B8')
+                  label(d,q['q'],375,40)
+                  for oi,opt in enumerate(q['options']):
+                      top=500+oi*118; correct=reveal and oi==q['answer']
+                      d.rounded_rectangle((82,top,638,top+96),20,fill='#115E4B' if correct else '#1B2940',outline=accent if correct else '#32435E',width=3 if correct else 1)
+                      label(d,opt,top+48,34,width=480,maxlines=2)
+                  if reveal:
+                      label(d,'الإجابة الصحيحة',915,29,accent)
+                      label(d,q['fact'],1005,28,'#E2E8F0')
+                  elif elapsed<segment['reading']: label(d,'ركز في السؤال',955,34,accent)
+                  else:
+                      remain=max(1,5-int(elapsed-segment['reading'])); pulse=math.sin(t*math.pi*2)*3
+                      d.ellipse((316-pulse,887-pulse,404+pulse,975+pulse),outline=accent,width=4)
+                      label(d,str(remain),932,47,accent)
+                      label(d,'اختر قبل انتهاء الوقت',1020,27,'#94A3B8')
+              d.rounded_rectangle((85,1130,635,1138),4,fill='#26354B')
+              end=85+int(550*min(1,t/duration))
+              if end>85: d.rounded_rectangle((85,1130,end,1138),4,fill=accent)
+              label(d,'اختبر معلوماتك',1170,24,'#94A3B8')
+              return im
+          
+          def render(short,index,outdir):
+              root=Path(outdir); root.mkdir(parents=True,exist_ok=True)
+              folder=root/('frames-'+short['id']); folder.mkdir(exist_ok=True)
+              timeline,intro_end,outro_start,duration,wav=prepare_audio(short,folder)
+              timing=(timeline,intro_end,outro_start,duration)
+              for i in range(round(duration*FPS)): frame(short,i/FPS,index,timing).save(folder/f'{i:04d}.png')
+              video=root/(short['id']+'.mp4')
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-framerate',str(FPS),'-i',str(folder/'%04d.png'),'-i',str(wav),'-c:v','libx264','-preset','veryfast','-crf','21','-r','30','-pix_fmt','yuv420p','-c:a','aac','-b:a','128k','-movflags','+faststart','-t',str(duration),str(video)],check=True)
+              shutil.rmtree(folder)
+              return video
+          
+          def metadata(short):
+              title=f"{short['hook']} | {short['topic']} #Shorts"
+              if len(title)>100: raise ValueError('Title too long')
+              answers='\n'.join(f"{i+1}. {q['q']}\nالإجابة: {q['options'][q['answer']]} — {q['fact']}" for i,q in enumerate(short['questions']))
+              desc=f"٥ أسئلة عن {short['topic']} مع تعليق صوتي عربي. أمامك ٥ ثوانٍ للاختيار في كل سؤال. احسب نتيجتك من ٥!\nاكتب نتيجتك والموضوع الذي تريده في التحدي القادم.\n\nالإجابات والتفسير:\n{answers}\n"
+              if short['sources']: desc+='\nمصادر المعلومات:\n'+'\n'.join(short['sources'])+'\n'
+              else: desc+='\nالإجابات الحسابية والمنطقية موضحة أعلاه.\n'
+              desc+=f"\n#Shorts #اختبر_معلوماتك #{short['hashtag']} #iQuiz\n\nQuiz ID: {short['id']}"
+              return dict(snippet=dict(title=title,description=desc,tags=['iQuiz','اختبر معلوماتك',short['topic'],'مسابقة عربية','Arabic quiz'],categoryId='27',defaultLanguage='ar'),status=dict(privacyStatus='public',selfDeclaredMadeForKids=False,license='youtube',embeddable=True))
+          
+          def published_ids(youtube,playlist):
+              found=set(); page=None
+              for _ in range(200):
+                  args=dict(part='snippet',playlistId=playlist,maxResults=50)
+                  if page: args['pageToken']=page
+                  result=youtube.playlistItems().list(**args).execute(num_retries=3)
+                  for item in result.get('items',[]): found.update(re.findall(r'Quiz ID: (iq-v2-[a-z]+)',item.get('snippet',{}).get('description','')))
+                  page=result.get('nextPageToken')
+                  if not page: return found
+              raise RuntimeError('History scan limit reached; nothing uploaded')
+          
+          PHASE='start'
+          def publish():
+              global PHASE
+              from google.oauth2.credentials import Credentials
+              from google.auth.transport.requests import Request
+              from googleapiclient.discovery import build
+              from googleapiclient.http import MediaFileUpload
+              if int(os.environ.get('GITHUB_RUN_ATTEMPT','1'))>1: raise RuntimeError('Reruns blocked; check Studio and start a new run')
+              names=['YOUTUBE_CLIENT_ID','YOUTUBE_CLIENT_SECRET','YOUTUBE_REFRESH_TOKEN']; values={n:os.environ.get(n,'').strip() for n in names}
+              if any(not v for v in values.values()): raise RuntimeError('Missing repository secret')
+              PHASE='refresh-token'
+              credentials=Credentials(token=None,refresh_token=values[names[2]],token_uri='https://oauth2.googleapis.com/token',client_id=values[names[0]],client_secret=values[names[1]])
+              credentials.refresh(Request()); print('::add-mask::'+credentials.token,flush=True)
+              youtube=build('youtube','v3',credentials=credentials,cache_discovery=False)
+              PHASE='check-channel'
+              channels=youtube.channels().list(part='snippet,contentDetails',mine=True).execute(num_retries=3).get('items',[])
+              if len(channels)!=1 or channels[0]['id']!='UCMpEO85fSUFPQz2EAjqsytw': raise RuntimeError('Wrong authorized channel; nothing uploaded')
+              PHASE='read-upload-history'; completed=published_ids(youtube,channels[0]['contentDetails']['relatedPlaylists']['uploads'])
+              count=int(os.environ.get('BATCH_COUNT','1'))
+              if count not in (1,3,6): raise RuntimeError('Invalid batch count')
+              selected=[(i,s) for i,s in enumerate(BANK) if s['id'] not in completed][:count]
+              Path('output').mkdir(exist_ok=True)
+              summary_path=Path(os.environ.get('GITHUB_STEP_SUMMARY','output/summary.md'))
+              if not selected:
+                  print('All 36 Shorts already uploaded. Nothing duplicated.')
+                  summary_path.write_text('All 36 Shorts already uploaded. Add new questions to continue.',encoding='utf-8'); return
+              summary=[]
+              for index,short in selected:
+                  PHASE='render-video'; print('Rendering '+short['id'],flush=True); video=render(short,index,'output'); payload=metadata(short)
+                  Path('output',short['id']+'.json').write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
+                  PHASE='upload-video'; response=None
+                  request=youtube.videos().insert(part='snippet,status',body=payload,notifySubscribers=False,media_body=MediaFileUpload(str(video),mimetype='video/mp4',chunksize=8*1024*1024,resumable=True))
+                  while response is None: _,response=request.next_chunk(num_retries=3)
+                  vid=response.get('id','')
+                  if not re.fullmatch('[A-Za-z0-9_-]{11}',vid): raise RuntimeError('Missing video ID; check Studio')
+                  url='https://www.youtube.com/watch?v='+vid; status=response.get('status',{}).get('privacyStatus','unknown')
+                  summary.append(f'- [{short["topic"]}]({url}) — visibility: {status}')
+                  summary_path.write_text('## iQuiz Shorts\n\n'+'\n'.join(summary),encoding='utf-8')
+                  print('Uploaded '+short['id']+' '+url+' '+status,flush=True); completed.add(short['id'])
+                  if status!='public': raise RuntimeError('Non-public visibility returned; check Studio before continuing')
+          
+          def safe_error(exc):
+              known={'invalid_grant','invalid_client','unauthorized_client','access_denied','invalid_scope','quotaExceeded','uploadLimitExceeded','forbidden','insufficientPermissions'}; code='unknown'
+              for arg in getattr(exc,'args',()):
+                  if isinstance(arg,dict) and isinstance(arg.get('error'),str) and arg['error'] in known: code=arg['error']
+              http=getattr(getattr(exc,'resp',None),'status',None)
+              if getattr(exc,'content',None):
+                  try:
+                      body=json.loads(exc.content)
+                      for item in body.get('error',{}).get('errors',[]):
+                          if item.get('reason') in known: code=item['reason']
+                  except Exception: pass
+              typename=type(exc).__name__
+              if not re.fullmatch(r'[A-Za-z0-9_]+',typename): typename='Error'
+              print(f'::error::Phase={PHASE}; type={typename}; code={code}; HTTP={http}. Check Studio before another upload run.')
+          
+          if __name__=='__main__':
+              if '--preview' in sys.argv:
+                  index=int(sys.argv[sys.argv.index('--preview')+1]); print(render(BANK[index],index,'output'))
+              else:
+                  try: publish()
+                  except Exception as exc: safe_error(exc); sys.exit(1)
+          PYCODE
+      - name: Save created videos and metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iquiz-shorts-${{ github.run_id }}
+          path: |
+            output/*.mp4
+            output/*.json
+          if-no-files-found: ignore
+          retention-days: 3
