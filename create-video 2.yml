@@ -1,0 +1,175 @@
+name: Create Arabic Quiz Video
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iquiz-private-upload
+  cancel-in-progress: false
+
+jobs:
+  create-video:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install Pillow arabic-reshaper python-bidi
+          python -m pip install google-api-python-client google-auth
+
+      - name: Create quiz frames
+        run: |
+          mkdir -p frames output
+          python <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          import arabic_reshaper
+          from bidi.algorithm import get_display
+
+          FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
+          def text(draw, words, y, size=42, color="white"):
+              words = get_display(arabic_reshaper.reshape(words))
+              font = ImageFont.truetype(FONT, size, layout_engine=ImageFont.Layout.BASIC)
+              draw.text((360, y), words, font=font, fill=color, anchor="mm")
+
+          for second in range(15):
+              image = Image.new("RGB", (720, 1280), "#101827")
+              draw = ImageDraw.Draw(image)
+              text(draw, "اختبر معلوماتك", 160, 42, "#5EEAD4")
+              text(draw, "ما أكبر كوكب", 290, 48)
+              text(draw, "في المجموعة الشمسية؟", 365, 44)
+              for index, option in enumerate(["المريخ", "المشتري", "نبتون"]):
+                  y = 490 + index * 120
+                  color = "#116B57" if second >= 8 and index == 1 else "#253247"
+                  draw.rounded_rectangle((85, y, 635, y + 95), radius=22, fill=color)
+                  text(draw, option, y + 47, 40)
+              if second < 3:
+                  text(draw, "اختر إجابتك", 935, 38, "#5EEAD4")
+              elif second < 8:
+                  text(draw, str(8 - second), 935, 90, "#FBBF24")
+              else:
+                  text(draw, "الإجابة: المشتري", 910, 42, "#5EEAD4")
+                  text(draw, "أكبر من جميع الكواكب الأخرى", 1000, 30)
+                  text(draw, "مجتمعة من حيث الكتلة", 1055, 30)
+              draw.rounded_rectangle((85, 1150, 635, 1160), radius=5, fill="#253247")
+              draw.rounded_rectangle(
+                  (85, 1150, 85 + int(550 * (second + 1) / 15), 1160),
+                  radius=5, fill="#5EEAD4"
+              )
+              image.save(f"frames/{second:03d}.png")
+          PY
+
+      - name: Render MP4
+        run: |
+          ffmpeg -y -framerate 1 -i frames/%03d.png             -vf "fps=30,format=yuv420p"             -c:v libx264 -preset fast -crf 20             -movflags +faststart output/arabic-quiz.mp4
+
+      - name: Save downloadable video
+        uses: actions/upload-artifact@v4
+        with:
+          name: arabic-quiz-video
+          path: output/arabic-quiz.mp4
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload private video to iQuiz
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          EXPECTED_CHANNEL_ID: UCMpEO85fSUFPQz2EAjqsytw
+        run: |
+          python <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+          from google.oauth2.credentials import Credentials
+          from google.auth.transport.requests import Request
+          from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
+          from googleapiclient.http import MediaFileUpload
+
+          def main():
+              if int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")) > 1:
+                  raise SystemExit("Re-run upload blocked to avoid duplicates. Check YouTube Studio before starting a new workflow run.")
+              names = ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
+              missing = [name for name in names if not os.environ.get(name, "").strip()]
+              if missing:
+                  raise SystemExit("Missing repository secrets: " + ", ".join(missing))
+              video = Path("output/arabic-quiz.mp4")
+              if not video.is_file() or video.stat().st_size == 0:
+                  raise SystemExit("Rendered video is missing or empty.")
+              credentials = Credentials(
+                  token=None,
+                  refresh_token=os.environ["YOUTUBE_REFRESH_TOKEN"].strip(),
+                  token_uri="https://oauth2.googleapis.com/token",
+                  client_id=os.environ["YOUTUBE_CLIENT_ID"].strip(),
+                  client_secret=os.environ["YOUTUBE_CLIENT_SECRET"].strip(),
+              )
+              credentials.refresh(Request())
+              # Mask the short-lived access token before any API calls.
+              print("::add-mask::" + credentials.token, flush=True)
+              youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+              channels = youtube.channels().list(part="snippet", mine=True).execute(num_retries=3)
+              items = channels.get("items", [])
+              expected = os.environ["EXPECTED_CHANNEL_ID"]
+              if len(items) != 1 or items[0].get("id") != expected:
+                  raise SystemExit("Connected channel does not match iQuiz. No video uploaded. Reauthorize the correct channel and replace the refresh token secret.")
+              print("Verified destination: iQuiz (" + expected + ")")
+              metadata = {
+                  "snippet": {
+                      "title": "ما أكبر كوكب في المجموعة الشمسية؟ | اختبر معلوماتك #Shorts",
+                      "description": "اختبر معلوماتك واختر الإجابة قبل انتهاء الوقت!\nالإجابة: المشتري.\n#Shorts #اختبر_معلوماتك #معلومات_عامة #iQuiz",
+                      "categoryId": "27",
+                      "defaultLanguage": "ar",
+                  },
+                  "status": {"privacyStatus": "private"},
+              }
+              upload = youtube.videos().insert(
+                  part="snippet,status",
+                  notifySubscribers=False,
+                  body=metadata,
+                  media_body=MediaFileUpload(str(video), mimetype="video/mp4", chunksize=8 * 1024 * 1024, resumable=True),
+              )
+              response = None
+              while response is None:
+                  progress, response = upload.next_chunk(num_retries=3)
+                  if progress:
+                      print("Upload progress: " + str(round(progress.progress() * 100)) + "%")
+              video_id = response.get("id", "")
+              if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+                  raise SystemExit("Upload finished without a valid video ID. Check YouTube Studio before retrying.")
+              if response.get("status", {}).get("privacyStatus") != "private":
+                  raise SystemExit("Unexpected privacy status. Check YouTube Studio immediately.")
+              url = "https://www.youtube.com/watch?v=" + video_id
+              print("Private video uploaded: " + url)
+              Path("output/youtube-video.json").write_text(
+                  json.dumps({"video_id": video_id, "channel_id": expected, "privacy": "private", "url": url}, indent=2),
+                  encoding="utf-8",
+              )
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write("## Private video uploaded to iQuiz\n\n[Watch your video](" + url + ")\n\nVisibility: **Private**. Sign in as the channel owner to view it.\n")
+
+          try:
+              main()
+          except HttpError as error:
+              # Do not print raw responses, request URLs, headers, or credentials.
+              print("::error::YouTube API request failed (HTTP " + str(error.resp.status) + "). Check the API is enabled, permissions and upload quota. Check YouTube Studio before retrying.")
+              raise SystemExit(1)
+          except SystemExit:
+              raise
+          except Exception:
+              print("::error::YouTube connection or upload failed. Check the three repository secrets and authorization. Check YouTube Studio before retrying.")
+              raise SystemExit(1)
+          PY
+
